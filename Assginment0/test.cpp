@@ -2,6 +2,10 @@
 #include<eigen3/Eigen/Core>
 #include<eigen3/Eigen/Dense>
 #include<iostream>
+using namespace std;
+using namespace Eigen;
+
+
 
 int main()
 {
@@ -13,12 +17,12 @@ int main()
     transition<<column1,column2,column3;
     Eigen::Vector3f color;
 
-    color<<1.0f,1.0f,-1.0f;
-    Eigen::Vector3f result=transition*color;
+    color<<3.0f,1.0f,-1.0f;
+    //Eigen::Vector3f result=transition.;
 
+    Vector3f res=color.cwiseProduct(color);
 
-
-    std::cout<<result<<std::endl;
+    std::cout<<color.norm()<<std::endl;
 
     //std::cout<<color.value();
 }
