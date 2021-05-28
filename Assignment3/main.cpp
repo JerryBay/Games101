@@ -34,6 +34,11 @@ float ToValuePow2(const Vector3f& vec)
     return square;
 }
 
+float h(float u,float v,Texture* texture)
+{
+    return texture->getColor(u,v).norm();
+}
+
 Eigen::Matrix4f get_view_matrix(Eigen::Vector3f eye_pos)
 {
     Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
@@ -250,11 +255,20 @@ Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payl
 }
 
 
+
 Eigen::Vector3f bump_fragment_shader(const fragment_shader_payload& payload)
 {
+
+    Eigen::Vector3f return_color = {0, 0, 0};
+    if (payload.texture)
+    {
+        // TODO: Get the texture value at the texture coordinates of the current fragment
+        Texture* texture=payload.texture;
+        return_color= texture->getColor(payload.tex_coords[0],payload.tex_coords[1]);
+    }
     
     Eigen::Vector3f ka = Eigen::Vector3f(0.005, 0.005, 0.005);
-    Eigen::Vector3f kd = payload.color;
+    Eigen::Vector3f kd = return_color/255.f;
     Eigen::Vector3f ks = Eigen::Vector3f(0.7937, 0.7937, 0.7937);
 
     auto l1 = light{{20, 20, 20}, {500, 500, 500}};
@@ -287,12 +301,34 @@ Eigen::Vector3f bump_fragment_shader(const fragment_shader_payload& payload)
     Vector3f binormal=normal.cross(tangent);
     Matrix3f TBN;
     TBN<<tangent,binormal,normal;
-    std::cout<<tangent<<std::endl;
-    std::cout<<TBN<<std::endl;
+    Texture* texture=payload.texture;
+    const Vector2f& tex_coords=payload.tex_coords;
+    float dU = kh * kn * (h(tex_coords.x()+1/texture->width,tex_coords.y(),texture)-h(tex_coords.x(),tex_coords.y(),texture));
+    float dV = kh * kn * (h(tex_coords.x(),tex_coords.y()+1/texture->height,texture)-h(tex_coords.x(),tex_coords.y(),texture));
+    Vector3f ln(-dU, -dV, 1);
+    normal = (TBN * ln).normalized();
+    Eigen::Vector3f result_color = {0,0,0};
 
+    for (auto& light : lights)
+    {
+        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
+        // components are. Then, accumulate that result on the *result_color* object.
+        Vector3f viewLightPos=(get_view_matrix(eye_pos)*Vector4f(light.position.x(),light.position.y(),light.position.z(),0.0f)).head<3>();
 
-    Eigen::Vector3f result_color = {0, 0, 0};
-    result_color = normal;
+        Vector3f tanLightPos=TBN.transpose()*viewLightPos;
+
+        float radiusPow2=ToValuePow2(viewLightPos-point);
+        Vector3f coefficient=light.intensity/radiusPow2;
+        
+        Vector3f ambient=ColorMul(amb_light_intensity,ka);
+
+        Vector3f diffuse=ColorMul(coefficient,kd)*std::max(0.0f,normal.dot(tanLightPos.normalized()));
+
+        Vector3f reflectDir=reflect(tanLightPos,normal);
+        Vector3f specular=ColorMul(coefficient,ks)*std::pow(std::max(0.0f,(-TBN.transpose()*point.normalized()).dot(reflectDir.normalized())),16);
+
+        result_color+=ambient+diffuse+specular;
+    }
 
     return result_color * 255.f;
 }
